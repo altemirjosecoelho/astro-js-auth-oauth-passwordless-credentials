@@ -1,0 +1,76 @@
+// schema.prisma
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String          @id @default(cuid())
+  fullName          String?
+  userName          String?          @unique
+  email             String          @unique
+  profilePhoto      String?
+  emailVerified     Boolean         @default(false)
+  twoFactorEnabled  Boolean         @default(false)
+  twoFactorSecret   String?
+  isBlocked         Boolean         @default(false)
+  isDeleted         Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  oauthTokens       OauthToken[]
+  sessions          Session[]
+  loginLogs         LoginLog[]
+  password          Password?
+  recoveryCodes     RecoveryCode[]
+}
+
+model OauthToken {
+  userId       String    @map("user_id")
+  strategy     String
+  accessToken  String
+  refreshToken String
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@id([userId, strategy])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  expiresAt Int
+  user      User      @relation(fields: [userId], references: [id])
+  loginLog  LoginLog?
+}
+
+model LoginLog {
+  id         String   @id @default(cuid())
+  sessionId  String   @map("session_id") @unique
+  userId     String   @map("user_id")
+  browser    String
+  device     String
+  os         String
+  ip         String
+  loggedInAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  session    Session  @relation(fields: [sessionId], references: [id])
+}
+
+model Password {
+  userId   String @id @map("user_id")
+  password String
+  user     User   @relation(fields: [userId], references: [id])
+}
+
+model RecoveryCode {
+  id      String  @id @default(cuid())
+  userId  String  @map("user_id")
+  code    String
+  isUsed  Boolean @default(false)
+  user    User    @relation(fields: [userId], references: [id])
+}

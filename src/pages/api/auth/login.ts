@@ -1,14 +1,12 @@
 import type { APIContext } from "astro";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
-import { db } from "../../../db";
-import { passwords, users } from "../../../db/schema";
 import {
   create2FASession,
   createLoginLog,
   createSession,
 } from "../../../lib/auth";
 import LoginSchema from "../../../validations/login";
+import prisma from "../../../database";
 
 export async function POST({ request, cookies }: APIContext) {
   try {
@@ -29,12 +27,16 @@ export async function POST({ request, cookies }: APIContext) {
       );
     }
 
-    const userExists = await db.query.users.findFirst({
-      where: eq(users.email, email),
+    const userExists = await prisma.user.findFirst({
+      where: {
+        email: email,
+      },
     });
 
-    const passwordExists = await db.query.passwords.findFirst({
-      where: eq(passwords.userId, userExists?.id ?? "SomeThingRandom"),
+    const passwordExists = await prisma.password.findFirst({
+      where: {
+        userId: userExists?.id ?? "SomeThingRandom",
+      },
     });
 
     // match password

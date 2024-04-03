@@ -1,13 +1,11 @@
 import type { APIContext } from "astro";
-import { eq } from "drizzle-orm";
-import { db } from "../../../db";
-import { users } from "../../../db/schema";
 import SignupSchema from "../../../validations/signup";
 import {
   createPassword,
   createUser,
   sendVerificationMail,
 } from "../../../lib/auth";
+import prisma from "../../../database";
 
 export async function POST({ request }: APIContext) {
   try {
@@ -33,8 +31,10 @@ export async function POST({ request }: APIContext) {
       );
     }
 
-    const userExists = await db.query.users.findFirst({
-      where: eq(users.email, email),
+    const userExists = await prisma.user.findFirst({
+      where: {
+        email: email,
+      },
     });
 
     if (userExists) {
@@ -66,7 +66,11 @@ export async function POST({ request }: APIContext) {
       );
     } else {
       console.log("error while sending the mail");
-      await db.delete(users).where(eq(users.email, email));
+      await prisma.user.deleteMany({
+        where: {
+          email: email,
+        },
+      });
       return Response.json(
         { error: "email_error", message: "Error while sending email" },
         { status: 500 }

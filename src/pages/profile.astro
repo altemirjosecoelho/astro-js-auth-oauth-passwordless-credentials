@@ -1,8 +1,7 @@
 ---
-import { eq, and, gte } from "drizzle-orm";
 import MainLayout from "../layout/main-layout.astro";
-import { sessions } from "../db/schema";
-import { db } from "../db";
+import prisma from "../database";
+
 
 const authToken = Astro.cookies.get("app_auth_token")?.value;
 
@@ -10,12 +9,14 @@ if (!authToken) {
   return Astro.redirect("/login");
 }
 
-const userInfo = await db.query.sessions.findFirst({
-  where: and(
-    eq(sessions.id, authToken),
-    gte(sessions.expiresAt, new Date().getTime())
-  ),
-  with: {
+const userInfo = await prisma.session.findFirst({
+  where: {
+    id: authToken,
+    expiresAt: {
+      gte: new Date().getTime()
+    }
+  },
+  include: {
     user: true,
   },
 });

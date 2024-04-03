@@ -1,16 +1,9 @@
-import { and, eq } from "drizzle-orm";
-import { db } from "../db/index";
-import {
-  loginLogs,
-  oauthTokens,
-  passwords,
-  sessions,
-  users,
-} from "../db/schema";
+
 import Bowser from "bowser";
 import bcrypt from "bcryptjs";
 import redis from "./redis";
 import { customAlphabet } from "nanoid";
+import prisma from "../database";
 
 type NewUserArgs = {
   email: string;
@@ -58,31 +51,34 @@ export const createUser = async ({
   emailVerified,
 }: NewUserArgs) => {
   try {
-    const newUser = await db
-      .insert(users)
-      .values({
+    const newUser = await prisma.user.create({
+      data: {
         email,
         profilePhoto,
         fullName,
         emailVerified,
         userName,
-      })
-      .returning({ id: users.id });
+      }
+    });
 
-    return { userId: newUser[0].id };
+    return { userId: newUser.id };
   } catch (error) {
     throw new Error("Error while creating user");
   }
 };
 
 export const checkUserExists = async ({ email, strategy }: UserExistArgs) => {
-  const userExists = await db.query.users.findFirst({
-    where: eq(users.email, email),
-    with: {
-      oauthTokens: {
-        where: eq(oauthTokens.strategy, strategy),
-      },
+  const userExists = await prisma.user.findFirst({
+    where: {
+      email: email
     },
+    include: {
+      oauthTokens: {
+        where: {
+          strategy: strategy
+        }
+      }
+    }
   });
 
   return userExists;
@@ -93,15 +89,14 @@ export const createSession = async ({ userId }: NewSessionArgs) => {
     throw new Error("User ID is required");
   }
   try {
-    const newSession = await db
-      .insert(sessions)
-      .values({
+    const newSession = await prisma.session.create({
+      data: {
         userId,
-        expiresAt: expiresAt.getTime(),
-      })
-      .returning({ id: sessions.id });
+        expiresAt: new Date(expiresAt).getTime(),
+      }
+    });
 
-    return { sessionId: newSession[0].id, expiresAt };
+    return { sessionId: newSession.id, expiresAt };
   } catch (error) {
     throw new Error("Failed to create session");
   }
@@ -114,11 +109,13 @@ export const saveOauthToken = async ({
   userId,
 }: TokenArgs) => {
   try {
-    await db.insert(oauthTokens).values({
-      userId,
-      strategy: strategy,
-      accessToken,
-      refreshToken,
+    await prisma.oauthToken.create({
+      data: {
+        userId,
+        strategy,
+        accessToken,
+        refreshToken,
+      },
     });
   } catch (error) {
     throw new Error("Error while creating token");
@@ -132,15 +129,18 @@ export const updateOauthToken = async ({
   userId,
 }: TokenArgs) => {
   try {
-    await db
-      .update(oauthTokens)
-      .set({
+    await prisma.oauthToken.update({
+      where: {
+        userId_strategy: {
+          userId,
+          strategy,
+        },
+      },
+      data: {
         accessToken,
         refreshToken,
-      })
-      .where(
-        and(eq(oauthTokens.userId, userId), eq(oauthTokens.strategy, strategy))
-      );
+      },
+    });
   } catch (error) {
     throw new Error("Error while creating token");
   }
@@ -158,13 +158,15 @@ export const createLoginLog = async ({
   const parser = Bowser.getParser(userAgent);
 
   try {
-    await db.insert(loginLogs).values({
-      userId,
-      sessionId,
-      ip,
-      os: `${parser.getOSName()} ${parser.getOSVersion()}`,
-      browser: `${parser.getBrowserName()} ${parser.getBrowserVersion()}`,
-      device: parser.getPlatformType(),
+    await prisma.loginLog.create({
+      data: {
+        userId,
+        sessionId,
+        ip,
+        os: `${parser.getOSName()} ${parser.getOSVersion()}`,
+        browser: `${parser.getBrowserName()} ${parser.getBrowserVersion()}`,
+        device: parser.getPlatformType(),
+      },
     });
   } catch (error) {
     throw new Error("Failed to create logs");
@@ -180,9 +182,11 @@ export const createPassword = async ({
 }) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    await db.insert(passwords).values({
-      userId,
-      password: hashedPassword,
+    await prisma.password.create({
+      data: {
+        userId,
+        password: hashedPassword,
+      },
     });
   } catch (error) {
     console.log("Error while creating password ", error);

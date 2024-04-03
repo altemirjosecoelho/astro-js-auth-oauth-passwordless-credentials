@@ -1,9 +1,7 @@
 import type { APIContext } from "astro";
-import { eq } from "drizzle-orm";
-import { db } from "../../../db";
-import { users } from "../../../db/schema";
 import redis from "../../../lib/redis";
 import EmailVerificationSchema from "../../../validations/email-verification";
+import prisma from "../../../database";
 
 export async function POST({ request }: APIContext) {
   const { id, code } = await request.json();
@@ -49,13 +47,14 @@ export async function POST({ request }: APIContext) {
       );
     }
 
-    await db
-      .update(users)
-      .set({
+    await prisma.user.update({
+      where: {
+        email: email,
+      },
+      data: {
         emailVerified: true,
-      })
-      .where(eq(users.email, email))
-      .returning({ id: users.id });
+      },
+    });
 
     await redis.del(id);
 

@@ -1,34 +1,36 @@
 ---
-import { eq, desc } from "drizzle-orm";
-
-import { db } from "../db";
+import prisma from "../database";
 import MainLayout from "../layout/main-layout.astro";
-import { loginLogs, sessions } from "../db/schema";
+
 
 const sessionToken = Astro.cookies.get("app_auth_token")?.value;
 
 if (!sessionToken) {
   return Astro.redirect("/");
 }
-const userInfo = await db.query.sessions.findFirst({
-  where: eq(sessions.id, sessionToken),
-  with: {
+const userInfo = await prisma.session.findFirst({
+  where: {
+    id: sessionToken,
+  },
+  include: {
     user: {
-      with: {
+      include: {
         oauthTokens: {
-          columns: {
+          select: {
             strategy: true,
           },
         },
         loginLogs: {
-          orderBy: desc(loginLogs.loggedInAt),
+          orderBy: {
+            loggedInAt: 'desc',
+          },
         },
       },
     },
   },
 });
 
-const logs = userInfo?.user?.loginLogs.sort((a, b) =>
+const logs = userInfo?.user?.loginLogs.sort((a: { sessionId: string }, b: { sessionId: string }) =>
   a.sessionId === sessionToken ? -1 : 1
 );
 
@@ -93,7 +95,7 @@ function capitalizeFirstWord(text: string) {
         <h2 class="text-xl my-3 font-semibold">Connected Accounts</h2>
 
         <div class="flex gap-5 flex-wrap items-center">
-          {userInfo?.user?.oauthTokens.map((provider) => (
+          {userInfo?.user?.oauthTokens.map((provider: { strategy: string; }) => (
             <div class="flex border-2 w-fit border-slate-600 items-center gap-4 rounded-full px-5 py-2">
               {provider.strategy === "github" ? (
                 <img width="30px" src="/github-mark.svg" />
@@ -113,7 +115,7 @@ function capitalizeFirstWord(text: string) {
 
     <div class="flex flex-col gap-5">
       {
-        logs?.map((log) => (
+        logs?.map((log: { sessionId: string; os: string; device: string; browser: string; ip: unknown; loggedInAt: string | number | Date; }) => (
           <div class="flex flex-col lg:flex-row justify-between items-center bg-slate-100 shadow-md rounded-md px-3 py-2">
             <div class="flex text-center flex-wrap justify-center items-center gap-2">
               {sessionToken === log.sessionId && (

@@ -1,21 +1,19 @@
-import { and, eq, gte } from "drizzle-orm";
-import { db } from "../db";
-import { sessions } from "../db/schema";
+import prisma from "../database";
 
 async function getUser(authToken: string | undefined) {
   if (!authToken) return null;
 
-  const userInfo = await db.query.sessions.findFirst({
-    where: and(
-      eq(sessions.id, authToken),
-      gte(sessions.expiresAt, new Date().getTime())
-    ),
-    columns: {
-      id: true,
+  const userInfo = await prisma.session.findFirst({
+    where: {
+      id: authToken,
+      expiresAt: {
+        gte: new Date().getTime()
+      }
     },
-    with: {
+    select: {
+      id: true,
       user: {
-        columns: {
+        select: {
           id: true,
           fullName: true,
           userName: true,

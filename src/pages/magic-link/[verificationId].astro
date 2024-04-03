@@ -1,7 +1,4 @@
 ---
-import { eq } from "drizzle-orm";
-import { db } from "../../db/index";
-import { users } from "../../db/schema";
 import MainLayout from "../../layout/main-layout.astro";
 import {
   create2FASession,
@@ -10,6 +7,7 @@ import {
 } from "../../lib/auth";
 import redis from "../../lib/redis";
 import EmailSchema from "../../validations/email";
+import prisma from "../../database";
 let isBlocked = false;
 let serverError = false;
 let error = false;
@@ -28,9 +26,15 @@ if (!validLink) {
   success = true;
 
   try {
-    const userExists = await db.query.users.findFirst({
-      where: eq(users.email, parsedData.data),
-      columns: { id: true, isBlocked: true, twoFactorEnabled: true },
+    const userExists = await prisma.user.findFirst({
+      where: {
+        email: parsedData.data,
+      },
+      select: {
+        id: true,
+        isBlocked: true,
+        twoFactorEnabled: true,
+      },
     });
 
     if (userExists) {
@@ -67,22 +71,22 @@ if (!validLink) {
 
       return Astro.redirect("/dashboard");
     } else {
-      const newUser = await db
-        .insert(users)
-        .values({
+      const newUser = await prisma.user.create({
+        data: {
+          userName: "",
           email: validLink as string,
           emailVerified: true,
-        })
-        .returning({ id: users.id });
+        },
+      });
 
       const { sessionId, expiresAt } = await createSession({
-        userId: newUser[0].id,
+        userId: newUser.id,
       });
 
       await createLoginLog({
         sessionId,
         userAgent: Astro.request.headers.get("user-agent"),
-        userId: newUser[0].id,
+        userId: newUser.id,
         ip: Astro.request.headers.get("x-real-ip") ?? "dev",
       });
       await redis.del(Astro.params.verificationId!);

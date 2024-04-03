@@ -1,7 +1,5 @@
 import type { APIContext } from "astro";
-import { db } from "../../../db";
-import { sessions } from "../../../db/schema";
-import { eq } from "drizzle-orm";
+import prisma from "../../../database";
 
 export async function GET({ cookies }: APIContext) {
   const sessionId = cookies.get("app_auth_token")?.value;
@@ -13,7 +11,11 @@ export async function GET({ cookies }: APIContext) {
       },
     });
   }
-  await db.delete(sessions).where(eq(sessions.id, sessionId));
+  await prisma.session.deleteMany({
+    where: {
+      id: sessionId,
+    },
+  });
 
   cookies.delete("app_auth_token", {
     path: "/",

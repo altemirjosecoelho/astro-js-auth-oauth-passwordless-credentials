@@ -1,11 +1,8 @@
 import type { APIContext } from "astro";
-import { sessions, users } from "../../../db/schema";
-import { db } from "../../../db";
-import { and, eq, gte } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { authenticator } from "otplib";
 import redis from "../../../lib/redis";
 import { createLoginLog, createSession } from "../../../lib/auth";
+import prisma from "../../../database";
 
 export async function POST({ request, cookies }: APIContext) {
   try {
@@ -43,8 +40,10 @@ export async function POST({ request, cookies }: APIContext) {
       );
     }
 
-    const userExists = await db.query.users.findFirst({
-      where: and(eq(users.id, userId as string)),
+    const userExists = await prisma.user.findFirst({
+      where: {
+        id: userId as string,
+      },
     });
 
     if (!userExists) {

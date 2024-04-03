@@ -1,9 +1,7 @@
 import type { APIContext } from "astro";
-import { and, eq } from "drizzle-orm";
-import { db } from "../../../db";
-import { users } from "../../../db/schema";
 import { sendPasswordResetMail } from "../../../lib/auth";
 import EmailSchema from "../../../validations/email";
+import prisma from "../../../database";
 
 export async function POST({ request, url }: APIContext) {
   const { email }: { email: string } = await request.json();
@@ -20,23 +18,22 @@ export async function POST({ request, url }: APIContext) {
     );
   }
 
-  const userExists = await db.query.users.findFirst({
-    where: and(
-      eq(users.email, parsedData.data),
-      eq(users.isBlocked, false),
-      eq(users.isDeleted, false)
-    ),
-
-    with: {
-      passwords: true,
+  const userExists = await prisma.user.findFirst({
+    where: {
+      email: parsedData.data,
+      isBlocked: false,
+      isDeleted: false
     },
+    include: {
+      password: true
+    }
   });
 
   try {
     const res = await sendPasswordResetMail({
       email: parsedData.data,
       url: url.origin,
-      userExists: !!userExists?.passwords,
+      userExists: !!userExists?.password,
     });
 
     if (res.emailSendLimit) {

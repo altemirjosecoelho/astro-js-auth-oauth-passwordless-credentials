@@ -1,7 +1,5 @@
 import type { APIContext } from "astro";
-import { and, eq, gte } from "drizzle-orm";
-import { db } from "../../db";
-import { sessions, users } from "../../db/schema";
+import prisma from "../../database";
 
 export async function POST({ request, cookies }: APIContext) {
   const requestBody = await request.formData();
@@ -20,14 +18,16 @@ export async function POST({ request, cookies }: APIContext) {
       );
     }
 
-    const sessionInfo = await db.query.sessions.findFirst({
-      where: and(
-        eq(sessions.id, authToken),
-        gte(sessions.expiresAt, new Date().getTime())
-      ),
-      with: {
-        user: true,
+    const sessionInfo = await prisma.session.findFirst({
+      where: {
+        AND: [
+          { id: authToken },
+          { expiresAt: { gte: new Date().getTime() } }
+        ]
       },
+      include: {
+        user: true
+      }
     });
 
     if (!sessionInfo || !sessionInfo.user) {
@@ -39,16 +39,18 @@ export async function POST({ request, cookies }: APIContext) {
       );
     }
 
-    await db
-      .update(users)
-      .set({
+    await prisma.user.update({
+      where: {
+        id: sessionInfo.user?.id,
+      },
+      data: {
         fullName: fullName as string,
         userName: userName as string,
-      })
-      .where(eq(users.id, sessionInfo.user?.id));
+      },
+    });
 
     return Response.json(
-      { success: true, message: "Profile Updated Sucessfully" },
+      { success: true, message: "Perfil atualizado com sucesso" },
       {
         status: 200,
       }

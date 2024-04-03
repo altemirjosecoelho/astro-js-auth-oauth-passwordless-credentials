@@ -1,10 +1,8 @@
 import type { APIContext } from "astro";
 import bcrypt from "bcryptjs";
-import { and, eq } from "drizzle-orm";
-import { db } from "../../../db";
-import { passwords, users } from "../../../db/schema";
 import redis from "../../../lib/redis";
 import PasswordSchema from "../../../validations/password";
+import prisma from "../../../database";
 
 export async function POST({ request }: APIContext) {
   const { id, password }: { id: string; password: string } =
@@ -45,13 +43,13 @@ export async function POST({ request }: APIContext) {
       );
     }
 
-    const userExists = await db.query.users.findFirst({
-      where: and(
-        eq(users.email, userInfo),
-        eq(users.isBlocked, false),
-        eq(users.isDeleted, false)
-      ),
-      columns: {
+    const userExists = await prisma.user.findFirst({
+      where: {
+        email: userInfo,
+        isBlocked: false,
+        isDeleted: false
+      },
+      select: {
         id: true,
         email: true,
       },
@@ -68,14 +66,23 @@ export async function POST({ request }: APIContext) {
     }
 
     const hashedPassword = await bcrypt.hash(parsedData.data, 10);
-    const res = await db
-      .update(passwords)
-      .set({
-        password: hashedPassword,
-      })
-      .where(eq(passwords.userId, userExists.id));
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: userExists.id,
+      },
+      include: {
+        password: true,
+      },
+      data: {
+        password: {
+          create: {
+            password: hashedPassword,
+          },
+        },
+      },
+    });
 
-    if (res.rowsAffected > 0) {
+    if (updatedUser) {
       return Response.json({ success: true }, { status: 200 });
     } else {
       return Response.json({ error: "server_error" }, { status: 500 });

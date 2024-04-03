@@ -1,7 +1,6 @@
 import type { APIContext } from "astro";
-import { and, eq, gte } from "drizzle-orm";
-import { db } from "../../../db";
-import { recoveryCodes, sessions } from "../../../db/schema";
+import prisma from "../../../database";
+
 
 export async function GET({ cookies }: APIContext) {
   try {
@@ -16,14 +15,16 @@ export async function GET({ cookies }: APIContext) {
       );
     }
 
-    const sessionInfo = await db.query.sessions.findFirst({
-      where: and(
-        eq(sessions.id, authToken),
-        gte(sessions.expiresAt, new Date().getTime())
-      ),
-      with: {
-        user: true,
+    const sessionInfo = await prisma.session.findFirst({
+      where: {
+        AND: [
+          { id: authToken },
+          { expiresAt: { gte: new Date().getTime() } }
+        ]
       },
+      include: {
+        user: true
+      }
     });
 
     if (!sessionInfo || !sessionInfo.user) {
@@ -35,11 +36,13 @@ export async function GET({ cookies }: APIContext) {
       );
     }
 
-    const exisitingCode = await db.query.recoveryCodes.findMany({
-      where: and(
-        eq(recoveryCodes.userId, sessionInfo.user.id),
-        eq(recoveryCodes.isUsed, false)
-      ),
+    const exisitingCode = await prisma.recoveryCode.findMany({
+      where: {
+        AND: [
+          { userId: sessionInfo.user.id },
+          { isUsed: false }
+        ]
+      }
     });
 
     if (exisitingCode.length < 1) {
@@ -53,13 +56,11 @@ export async function GET({ cookies }: APIContext) {
     }
 
     let codes: string[] = [];
-
     if (exisitingCode.length > 0) {
-      exisitingCode.forEach((code) => {
+      exisitingCode.forEach((code: { code: string }) => {
         codes.push(code.code);
       });
     }
-
     return new Response(codes.join("\n"), {
       headers: {
         "Content-Disposition": "attachment; filename=astro-auth-codes.txt",

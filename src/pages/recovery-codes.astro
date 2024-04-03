@@ -1,8 +1,6 @@
 ---
-import { eq } from "drizzle-orm";
-import { db } from "../db";
-import { recoveryCodes, users } from "../db/schema";
 import MainLayout from "../layout/main-layout.astro";
+import prisma from "../database";
 
 const userId = Astro.locals?.userId;
 
@@ -10,12 +8,16 @@ if (!userId) {
   return Astro.redirect("/login");
 }
 
-const existingUser = await db.query.users.findFirst({
-  where: eq(users.id, userId),
-  with: {
+const existingUser = await prisma.user.findFirst({
+  where: {
+    id: userId,
+  },
+  include: {
     recoveryCodes: {
-      where: eq(recoveryCodes.isUsed, false),
-      columns: {
+      where: {
+        isUsed: false,
+      },
+      select: {
         code: true,
       },
     },
@@ -60,7 +62,7 @@ if (!existingUser) {
         Rotate Code
       </button>
     </div>
-    {existingUser.recoveryCodes.map((code) => <p>{code.code}</p>)}
+    {existingUser.recoveryCodes.map((code: { code: string }) => <p>{code.code}</p>)}
   </div>
 </MainLayout>
 

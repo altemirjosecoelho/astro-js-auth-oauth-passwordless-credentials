@@ -1,9 +1,7 @@
 import type { APIContext } from "astro";
-import { and, eq } from "drizzle-orm";
-import { db } from "../../../db";
-import { recoveryCodes, users } from "../../../db/schema";
 import { createLoginLog, createSession } from "../../../lib/auth";
 import redis from "../../../lib/redis";
+import prisma from "../../../database";
 
 export async function POST({ request, cookies }: APIContext) {
   try {
@@ -41,11 +39,15 @@ export async function POST({ request, cookies }: APIContext) {
       );
     }
 
-    const userExists = await db.query.users.findFirst({
-      where: and(eq(users.id, userId as string)),
-      with: {
+    const userExists = await prisma.user.findFirst({
+      where: {
+        id: userId as string,
+      },
+      include: {
         recoveryCodes: {
-          where: eq(recoveryCodes.isUsed, false),
+          where: {
+            isUsed: false,
+          },
         },
       },
     });
@@ -59,17 +61,19 @@ export async function POST({ request, cookies }: APIContext) {
       );
     }
 
-    const codes = userExists.recoveryCodes.map((code) => code.code);
+    const codes = userExists.recoveryCodes.map((code:any) => code.code);
 
-    const isValidCode = codes.some((code) => code === enteredCode);
+    const isValidCode = codes.some((code:any) => code === enteredCode);
 
     if (isValidCode) {
-      await db
-        .update(recoveryCodes)
-        .set({
+      await prisma.recoveryCode.updateMany({
+        where: {
+          code: enteredCode,
+        },
+        data: {
           isUsed: true,
-        })
-        .where(eq(recoveryCodes.code, enteredCode));
+        },
+      });
       const { sessionId, expiresAt } = await createSession({
         userId: userExists.id,
       });

@@ -1,9 +1,7 @@
 import type { APIContext } from "astro";
-import { and, eq } from "drizzle-orm";
-import { db } from "../../../db";
-import { users } from "../../../db/schema";
 import { sendVerificationMail } from "../../../lib/auth";
 import EmailSchema from "../../../validations/email";
+import prisma from "../../../database";
 
 export async function POST({ request }: APIContext) {
   const { email }: { email: string } = await request.json();
@@ -20,12 +18,12 @@ export async function POST({ request }: APIContext) {
     );
   }
 
-  const userExists = await db.query.users.findFirst({
-    where: and(
-      eq(users.email, parsedData.data),
-      eq(users.isBlocked, false),
-      eq(users.isDeleted, false)
-    ),
+  const userExists = await prisma.user.findFirst({
+    where: {
+      email: parsedData.data,
+      isBlocked: false,
+      isDeleted: false
+    }
   });
 
   if (!userExists) {
